@@ -53,8 +53,9 @@ export function ensureAuthenticated(req, res, next) {
     return res.status(401).json({ message: 'Invalid authorization format' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) {
+      console.log(err)
       return res.status(403).json({ message: 'Invalid or expired token' });
     }
 
