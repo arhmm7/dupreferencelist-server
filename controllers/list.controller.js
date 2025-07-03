@@ -27,7 +27,7 @@ function getValidCourseCombos(data, preferredCourses) {
 }
 
 function formatCombosList(combos) {
-  return combos.map(({ college, course }) => `${college} - ${course}`).join('\n');
+  return combos.map(({ college, course }) => `[${college}] - [${course}]`).join('\n');
 }
 
 export const generatePreferenceList = async (req, res) => {
@@ -64,35 +64,40 @@ export const generatePreferenceList = async (req, res) => {
     const validCombos = getValidCourseCombos(data, preferredCourses);
     const formattedCombos = formatCombosList(validCombos);
 
+    console.log(formattedCombos);
+
     const collegeNote = Array.isArray(preferredColleges) && preferredColleges.length > 0
       ? `Try to prefer the following colleges if possible: ${preferredColleges.join(', ')}.`
       : "";
 
- const prompt = `
-  You are a DU college counsellor.
-  Your job is to help create the best possible preference list for a student.
+    const prompt = `
+      Act as a Delhi University admissions expert.
 
-  Only respond with valid JSON. Do not include any explanations, notes, or additional text — just the JSON array.
+      Evaluate and rank the following college-course pairs based on:
+      - College reputation (e.g., North Campus, top-tier status)
+      - Course popularity and placement outcomes
+      - Overall demand and perceived prestige
 
-  Here are all the valid combinations — only use these, do not invent any:
-  ${formattedCombos}
+      Only use the provided combinations. Return a JSON array with the **top 30** ranked entries in the following format:
 
-  Make sure to include all the preferred courses in the list to keep it diverse:
-  ${preferredCourses}
+      [
+        { "rank": "1", "college": "[College Name]", "course": "[Course Name]" },
+        ...
+        { "rank": "30", "college": "[College Name]", "course": "[Course Name]" }
+      ]
 
-  Here are the colleges the student prefers — prioritize them slightly:
-  ${collegeNote}
+      Do not include any explanation or extra text — output only the JSON array.
 
-  Rank the combinations based on how desirable and reputed they are to a typical DU applicant.
-  Consider placements, reputation, location (like North Campus), etc.
-  Return only the **top 30 combinations** in descending preference order.
+      Input data:
+      formattedCombos = ${formattedCombos}
 
-  Respond ONLY as a JSON array:
-  [
-    { "rank": "1", "college": "Hansraj College", "course": "B.Sc. (Hons.) Computer Science" },
-    ...
-  ]
-  `;
+      Additional notes:
+      ${collegeNote}
+
+      if the input data is not enough return it as it is with minimal ranking if required
+    `;
+
+
 
 
     const response = await openai.chat.completions.create({
@@ -102,6 +107,7 @@ export const generatePreferenceList = async (req, res) => {
     });
 
     const resultText = response.choices[0].message.content;
+    console.log(resultText);
 
     try {
       const resultJSON = JSON.parse(resultText);

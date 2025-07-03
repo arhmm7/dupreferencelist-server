@@ -8,7 +8,7 @@ const razorpay = new Razorpay({
 });
 
 export const createOrder = async (req, res) => {
-  const { amount, user_id, promo_code } = req.body;
+  const { amount, user_id } = req.body;
 
   if (!user_id || !amount) {
     return res.status(400).json({ message: "user_id and amount are required" });
@@ -18,27 +18,29 @@ export const createOrder = async (req, res) => {
     const db = await initDB();
     let finalAmount = amount;
     let discountApplied = 0;
+    let appliedPromoCode = null;
 
-    if (promo_code) {
+    // Get user's saved promo_code
+    const user = await db.get(
+      `SELECT promo_code FROM users WHERE id = ?`,
+      [user_id]
+    );
+
+    if (user?.promo_code) {
       const promo = await db.get(
-        'SELECT * FROM promo_codes WHERE code = ? AND active = 1',
-        [promo_code]
+        `SELECT * FROM promo_codes WHERE code = ? AND active = 1`,
+        [user.promo_code]
       );
 
-      if (!promo) {
-        return res.status(400).json({ message: "Invalid promo code" });
+      if (promo && (promo.usage_limit === null || promo.usage_count < promo.usage_limit)) {
+        discountApplied = Math.floor((promo.discount_percent || 0) * amount / 100);
+        finalAmount = amount - discountApplied;
+        appliedPromoCode = promo.code;
       }
-
-      if (promo.usage_limit !== null && promo.usage_count >= promo.usage_limit) {
-        return res.status(400).json({ message: "Promo code usage limit reached" });
-      }
-
-      discountApplied = Math.floor((promo.discount_percent || 0) * amount / 100);
-      finalAmount = amount - discountApplied;
     }
 
     const options = {
-      amount: finalAmount * 100, // in paise
+      amount: finalAmount * 100, // paise
       currency: "INR",
       receipt: `receipt_${Date.now()}`,
     };
@@ -47,7 +49,7 @@ export const createOrder = async (req, res) => {
 
     await db.run(
       `INSERT INTO orders (user_id, razorpay_order_id, amount, promo_code) VALUES (?, ?, ?, ?)`,
-      [user_id, order.id, finalAmount, promo_code || null]
+      [user_id, order.id, finalAmount, appliedPromoCode]
     );
 
     return res.status(200).json({
@@ -55,12 +57,12 @@ export const createOrder = async (req, res) => {
       original_amount: amount,
       discount_applied: discountApplied,
       final_amount: finalAmount,
+      applied_promo_code: appliedPromoCode,
     });
   } catch (err) {
     return res.status(500).json({ message: "Failed to create order", error: err.message });
   }
 };
-
 export const verifyPayment = async (req, res) => {
 
     const db = await initDB();

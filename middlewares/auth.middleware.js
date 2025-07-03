@@ -9,9 +9,9 @@ export const validateSignUp = (req, res, next) => {
     last_name: Joi.string().min(2).max(100).required(),
     email : Joi.string().email().required(),
     password: Joi.string().min(8).max(100).required(),
-    referCode: Joi.string().alphanum().min(3).max(20).optional()
+    promo_code: Joi.string().alphanum().allow("").optional()
   });
-
+  
   const { error } = schema.validate(req.body);
   if (error) {
     return res.status(400).json({
